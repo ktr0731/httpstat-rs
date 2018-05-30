@@ -1,0 +1,6 @@
+[package]
+name = "httpstat"
+version = "0.1.0"
+authors = ["ktr0731 <aizu.s1230022@gmail.com>"]
+
+[dependencies]
