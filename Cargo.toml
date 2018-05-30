@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["ktr0731 <aizu.s1230022@gmail.com>"]
 
 [dependencies]
+url = "1.7.0"
+futures = "0.1"
+hyper = "0.11"
+tokio-core = "0.1"
