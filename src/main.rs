@@ -1,49 +1,63 @@
-extern crate futures;
-extern crate hyper;
-extern crate tokio_core;
+extern crate reqwest;
 extern crate url;
 
-use futures::{Future, Stream};
-use hyper::Client;
-use std::env;
+use reqwest::Error;
 use std::io::{self, Write};
-use tokio_core::reactor::Core;
+use std::{env, process};
 use url::{ParseError, Url};
 
-const HTTPS_TEMPLATE: &str = "
-  DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
-[%s  |     %s  |    %s  |        %s  |       %s  ]
-|                |               |                   |                  |
-namelookup:%s      |               |                   |                  |
-connect:%s     |                   |                  |
-pretransfer:%s         |                  |
-starttransfer:%s        |
-total:%s
-";
-
-const HTTP_TEMPLATE: &str = "
-  DNS Lookup   TCP Connection   Server Processing   Content Transfer
-[ %s  |     %s  |        %s  |       %s  ]
-|                |                   |                  |
-namelookup:%s      |                   |                  |
-connect:%s         |                  |
-starttransfer:%s        |
-total:%s
-";
+// const HTTPS_TEMPLATE: &str = "
+//   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
+// [%s  |     %s  |    %s  |        %s  |       %s  ]
+// |                |               |                   |                  |
+// namelookup:%s      |               |                   |                  |
+// connect:%s     |                   |                  |
+// pretransfer:%s         |                  |
+// starttransfer:%s        |
+// total:%s
+// ";
+//
+// const HTTP_TEMPLATE: &str = "
+//   DNS Lookup   TCP Connection   Server Processing   Content Transfer
+// [ %s  |     %s  |        %s  |       %s  ]
+// |                |                   |                  |
+// namelookup:%s      |                   |                  |
+// connect:%s         |                  |
+// starttransfer:%s        |
+// total:%s
+// ";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    request(&args[0]);
+    println!("{}", &args[1]);
+    process::exit(match run() {
+        Ok(_) => 0,
+        Err(err) => {
+            println!("{}", err);
+            1
+        }
+    })
 }
 
-fn request(url: &str) -> Result<i32, String> {
-    let mut core = Core::new()?;
-    let client = Client::new(&core.handle());
-    if let Ok(uri) = url.parse() {
-        let work = client.get(uri).map(|res| {
-            println!("Response: {}", res.status());
-        });
+fn run() -> Result<(), String> {
+    match env::args().nth(1) {
+        Some(url) => {
+            let res = request(&url)?;
+            println!("{}", res);
+            Ok(())
+        }
+        None => Err(String::from("Usage: httpstat <url>")),
     }
-    Ok(0)
+}
+
+fn request(url: &str) -> Result<String, String> {
+    reqwest::get(url)
+        .map_err(|e| format!("failed to send request: {}", e))?
+        .text()
+        .map_err(|e| format!("failed: {}", e))
+    // .map(|res| {
+    //     println!("Response: {}", res.status());
+    // });
+    // Ok(0)
 }
