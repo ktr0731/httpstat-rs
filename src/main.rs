@@ -1,3 +1,4 @@
+extern crate colored;
 extern crate serde_json;
 extern crate tempfile;
 extern crate url;
@@ -10,6 +11,8 @@ use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::{env, process};
 use url::{ParseError, Url};
+
+use colored::*;
 
 const CURL_FORMAT: &str = r#"
 {
@@ -155,10 +158,10 @@ fn formatResponseText(status: Status) -> Result<String, String> {
     ))
 }
 
-fn fmta(n: f32) -> String {
-    format!("{:7}ms", n as i32)
+fn fmta(n: f32) -> colored::ColoredString {
+    format!("{:7}ms", n as i32).cyan()
 }
 
-fn fmtb(n: f32) -> String {
-    format!("{:<7}", (n as i32).to_string() + "ms")
+fn fmtb(n: f32) -> colored::ColoredString {
+    format!("{:<7}", (n as i32).to_string() + "ms").cyan()
 }
