@@ -71,12 +71,12 @@ impl Status {
     fn new(resp: &str) -> Result<Status, String> {
         let mut status: Status = serde_json::from_str(resp)
             .map_err(|e| format!("failed to marshal response data: {}", e))?;
-        status.time_namelookup *= 1000 as f32;
-        status.time_connect *= 1000 as f32;
-        status.time_pretransfer *= 1000 as f32;
-        status.time_redirect *= 1000 as f32;
-        status.time_starttransfer *= 1000 as f32;
-        status.time_total *= 1000 as f32;
+        status.time_namelookup *= 1000.0;
+        status.time_connect *= 1000.0;
+        status.time_pretransfer *= 1000.0;
+        status.time_redirect *= 1000.0;
+        status.time_starttransfer *= 1000.0;
+        status.time_total *= 1000.0;
 
         status.range_dns = status.time_namelookup;
         status.range_connection = status.time_connect - status.time_namelookup;
