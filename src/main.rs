@@ -15,7 +15,6 @@ const CURL_FORMAT: &str = r#"
 {
     "time_namelookup":    %{time_namelookup},
     "time_connect":       %{time_connect},
-    "time_appconnect":    %{time_appconnect},
     "time_pretransfer":   %{time_pretransfer},
     "time_redirect":      %{time_redirect},
     "time_starttransfer": %{time_starttransfer},
@@ -29,16 +28,6 @@ const CURL_FORMAT: &str = r#"
 }
 "#;
 
-const HTTPS_TEMPLATE: &str = "
-  DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
-[%s  |     %s  |    %s  |        %s  |       %s  ]
-|                |               |                   |                  |
-namelookup:%s      |               |                   |                  |
-connect:%s     |                   |                  |
-pretransfer:%s         |                  |
-starttransfer:%s        |
-total:%s
-";
 //
 // const HTTP_TEMPLATE: &str = "
 //   DNS Lookup   TCP Connection   Server Processing   Content Transfer
@@ -55,7 +44,6 @@ total:%s
 struct Status {
     time_namelookup: f32,
     time_connect: f32,
-    time_appconnect: f32,
     time_pretransfer: f32,
     time_redirect: f32,
     time_starttransfer: f32,
@@ -83,6 +71,13 @@ impl Status {
     fn new(resp: &str) -> Result<Status, String> {
         let mut status: Status = serde_json::from_str(resp)
             .map_err(|e| format!("failed to marshal response data: {}", e))?;
+        status.time_namelookup *= 1000 as f32;
+        status.time_connect *= 1000 as f32;
+        status.time_pretransfer *= 1000 as f32;
+        status.time_redirect *= 1000 as f32;
+        status.time_starttransfer *= 1000 as f32;
+        status.time_total *= 1000 as f32;
+
         status.range_dns = status.time_namelookup;
         status.range_connection = status.time_connect - status.time_namelookup;
         status.range_ssl = status.time_pretransfer - status.time_connect;
@@ -131,10 +126,39 @@ fn request(url: &str) -> Result<Status, String> {
         .map_err(|e| format!("failed to execute curl: {}", e))?
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
-    println!("{}", resp);
     Ok(Status::new(resp)?)
 }
 
 fn formatResponseText(status: Status) -> Result<String, String> {
-    Ok("".to_string())
+    Ok(format!(
+        "
+  DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
+[{}  |     {}  |    {}  |        {}  |       {}  ]
+            |                |               |                   |                  |
+   namelookup:{}        |               |                   |                  |
+                       connect:{}       |                   |                  |
+                                   pretransfer:{}           |                  |
+                                                     starttransfer:{}          |
+                                                                                total:{}
+
+",
+        fmta(status.range_dns),
+        fmta(status.range_connection),
+        fmta(status.range_ssl),
+        fmta(status.range_server),
+        fmta(status.range_transfer),
+        fmtb(status.time_namelookup),
+        fmtb(status.time_connect),
+        fmtb(status.time_pretransfer),
+        fmtb(status.time_starttransfer),
+        fmtb(status.time_total),
+    ))
+}
+
+fn fmta(n: f32) -> String {
+    format!("{:7}ms", n as i32)
+}
+
+fn fmtb(n: f32) -> String {
+    format!("{:<7}", (n as i32).to_string() + "ms")
 }
