@@ -136,13 +136,13 @@ fn formatResponseText(status: Status) -> Result<String, String> {
     Ok(format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
-[{}  |     {}  |    {}  |        {}  |       {}  ]
-            |                |               |                   |                  |
-   namelookup:{}        |               |                   |                  |
-                       connect:{}       |                   |                  |
-                                   pretransfer:{}           |                  |
-                                                     starttransfer:{}          |
-                                                                                total:{}
+[{}   |     {}  |    {}  |        {}  |       {}  ]
+             |                |               |                   |                  |
+    namelookup:{}        |               |                   |                  |
+                        connect:{}       |                   |                  |
+                                    pretransfer:{}           |                  |
+                                                      starttransfer:{}          |
+                                                                                 total:{}
 
 ",
         fmta(status.range_dns),
