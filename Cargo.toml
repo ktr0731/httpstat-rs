@@ -5,4 +5,6 @@ authors = ["ktr0731 <aizu.s1230022@gmail.com>"]
 
 [dependencies]
 url = "1.7.0"
-reqwest = "0.8.5"
+serde = "1.0.64"
+serde_json = "1.0.19"
+serde_derive = "1.0.64"
