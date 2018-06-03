@@ -133,7 +133,24 @@ fn request(url: &str) -> Result<Status, String> {
 }
 
 fn formatResponseText(status: Status) -> Result<String, String> {
-    Ok(format!(
+    let mut res = String::new();
+    res.push_str(formatConnection(&status).as_str());
+    res.push_str(formatBody(&status).as_str());
+    Ok(res)
+}
+
+fn formatConnection(status: &Status) -> String {
+    format!(
+        "Connected to {}:{} from {}:{}\n",
+        status.remote_ip.cyan(),
+        status.remote_port.cyan(),
+        status.local_ip,
+        status.local_port
+    )
+}
+
+fn formatBody(status: &Status) -> String {
+    format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
 [   {a0000}  |     {a0001}    |    {a0002}    |      {a0003}      |     {a0004}     ]
@@ -155,7 +172,7 @@ fn formatResponseText(status: Status) -> Result<String, String> {
         b0002 = fmtb(status.time_pretransfer),
         b0003 = fmtb(status.time_starttransfer),
         b0004 = fmtb(status.time_total),
-    ))
+    )
 }
 
 fn fmta(n: f32) -> colored::ColoredString {
