@@ -7,6 +7,7 @@ extern crate url;
 extern crate serde_derive;
 
 use serde_json::{Error, Value};
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::{env, process};
@@ -77,7 +78,7 @@ impl Metrics {
 struct Headers {
     version: u8,
     code: u16,
-    items: Vec<(&'static str, &'static str)>,
+    items: Vec<(String, String)>,
 }
 
 struct Body {
@@ -170,10 +171,10 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         .parse()
         .map_err(|e| format!("failed to parse protocol version as integer: {}", e))?;
 
-    let mut header_items: Vec<(&str, &str)> = [].to_vec();
+    let mut header_items: Vec<(String, String)> = [].to_vec();
     for header in lines {
         let v: Vec<&str> = header.split(" ").collect();
-        header_items.push((v[0], v[1]));
+        header_items.push((String::from(v[0]), String::from(v[1])));
     }
 
     let mut body_buf = BufReader::new(File::open(body_filename).unwrap());
