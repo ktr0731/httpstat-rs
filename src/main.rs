@@ -177,7 +177,7 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
 
     let mut header_items: Vec<(String, String)> = [].to_vec();
     for header in lines {
-        let v: Vec<&str> = header.split(" ").collect();
+        let v: Vec<&str> = header.splitn(2, " ").collect();
         header_items.push((String::from(v[0]), String::from(v[1])));
     }
 
@@ -241,13 +241,13 @@ fn formatBody(Metrics: &Metrics) -> String {
     format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
-[   {a0000}  |     {a0001}    |    {a0002}    |      {a0003}      |     {a0004}     ]
-             |                |               |                   |                 |
-    namelookup:{b0000}        |               |                   |                 |
-                        connect:{b0001}       |                   |                 |
-                                    pretransfer:{b0002}           |                 |
-                                                      starttransfer:{b0003}         |
-                                                                                total:{b0004}
+[   {a0000}  |     {a0001}    |    {a0002}    |      {a0003}      |      {a0004}     ]
+             |                |               |                   |                  |
+    namelookup:{b0000}        |               |                   |                  |
+                        connect:{b0001}       |                   |                  |
+                                    pretransfer:{b0002}           |                  |
+                                                      starttransfer:{b0003}          |
+                                                                                 total:{b0004}
 
 ",
         a0000 = fmta(Metrics.range_dns),
