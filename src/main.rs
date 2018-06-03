@@ -136,30 +136,30 @@ fn formatResponseText(status: Status) -> Result<String, String> {
     Ok(format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
-[{}   |     {}  |    {}  |        {}  |       {}  ]
-             |                |               |                   |                  |
-    namelookup:{}        |               |                   |                  |
-                        connect:{}       |                   |                  |
-                                    pretransfer:{}           |                  |
-                                                      starttransfer:{}          |
-                                                                                 total:{}
+[   {a0000}  |     {a0001}    |    {a0002}    |      {a0003}      |     {a0004}     ]
+             |                |               |                   |                 |
+    namelookup:{b0000}        |               |                   |                 |
+                        connect:{b0001}       |                   |                 |
+                                    pretransfer:{b0002}           |                 |
+                                                      starttransfer:{b0003}         |
+                                                                                total:{b0004}
 
 ",
-        fmta(status.range_dns),
-        fmta(status.range_connection),
-        fmta(status.range_ssl),
-        fmta(status.range_server),
-        fmta(status.range_transfer),
-        fmtb(status.time_namelookup),
-        fmtb(status.time_connect),
-        fmtb(status.time_pretransfer),
-        fmtb(status.time_starttransfer),
-        fmtb(status.time_total),
+        a0000 = fmta(status.range_dns),
+        a0001 = fmta(status.range_connection),
+        a0002 = fmta(status.range_ssl),
+        a0003 = fmta(status.range_server),
+        a0004 = fmta(status.range_transfer),
+        b0000 = fmtb(status.time_namelookup),
+        b0001 = fmtb(status.time_connect),
+        b0002 = fmtb(status.time_pretransfer),
+        b0003 = fmtb(status.time_starttransfer),
+        b0004 = fmtb(status.time_total),
     ))
 }
 
 fn fmta(n: f32) -> colored::ColoredString {
-    format!("{:7}ms", n as i32).cyan()
+    format!("{:^7}", (n as i32).to_string() + "ms").cyan()
 }
 
 fn fmtb(n: f32) -> colored::ColoredString {
