@@ -8,6 +8,7 @@ extern crate serde_derive;
 
 use serde_json::{Error, Value};
 use std::borrow::Cow;
+use std::fs;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::{env, process};
@@ -155,6 +156,8 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
     header_buf
         .read_to_string(&mut headers)
         .map_err(|e| format!("failed to read response header: {}", e))?;
+    fs::remove_file(header_filename)
+        .map_err(|e| format!("failed to remove temp file for response header: {}", e))?;
 
     let mut lines = headers.trim().lines();
     let protocol_and_code: Vec<&str> = lines
@@ -183,6 +186,8 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
     body_buf
         .read_to_string(&mut body)
         .map_err(|e| format!("failed to read response body: {}", e))?;
+    fs::remove_file(body_filename)
+        .map_err(|e| format!("failed to remove temp file for response body: {}", e))?;
 
     Ok(Response {
         headers: Headers {
