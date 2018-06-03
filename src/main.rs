@@ -160,10 +160,11 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
     let protocol_and_code: Vec<&str> = lines
         .next()
         .ok_or("expected protocol info, but EOF: {}")?
-        .split(" ")
+        .trim()
+        .splitn(2, " ")
         .take(2)
         .collect();
-    let code: u16 = protocol_and_code[0]
+    let code: u16 = protocol_and_code[1]
         .parse()
         .map_err(|e| format!("failed to parse status code as interger: {}", e))?;
     let protocol_and_version: Vec<&str> = protocol_and_code[0].split("/").take(2).collect();
@@ -200,6 +201,7 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
 fn formatResponseText(resp: Response) -> Result<String, String> {
     let mut res = String::new();
     res.push_str(formatConnection(&resp.metrics).as_str());
+    res.push_str(formatHeaders(&resp.headers).as_str());
     res.push_str(formatBody(&resp.metrics).as_str());
     Ok(res)
 }
@@ -214,8 +216,20 @@ fn formatConnection(Metrics: &Metrics) -> String {
     )
 }
 
-fn formatHeaders(Metrics: &Metrics) -> Result<String, String> {
-    Ok("".to_string())
+fn formatHeaders(headers: &Headers) -> String {
+    let mut s = String::new();
+    s.push_str(
+        format!(
+            "{}/{} {}\n",
+            "HTTP".green(),
+            headers.version.to_string().cyan(),
+            headers.code.to_string().cyan()
+        ).as_str(),
+    );
+    for header in &headers.items {
+        s.push_str(format!("{} {}\n", header.0, header.1.cyan(),).as_str())
+    }
+    s
 }
 
 fn formatBody(Metrics: &Metrics) -> String {
