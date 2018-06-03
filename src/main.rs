@@ -83,7 +83,7 @@ struct Headers {
 }
 
 struct Body {
-    filename: &'static str,
+    filename: String,
     content: String,
 }
 
@@ -131,7 +131,10 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
             "local_port":         "%{local_port}"
         }"#;
 
-    let body_filename: &'static str = body_filename.unwrap_or("temp_body");
+    let body_file = tempfile::NamedTempFile::new().unwrap();
+
+    let body_filename = body_file.path().to_string_lossy().into_owned();
+    println!("tmp: {}", body_filename);
     let header_filename = "temp_header";
 
     let out = process::Command::new("curl")
@@ -141,7 +144,7 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
             "-D",
             header_filename,
             "-o",
-            body_filename,
+            body_filename.as_ref(),
             "-s",
             "-S",
             url,
@@ -181,13 +184,14 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         header_items.push((String::from(v[0]), String::from(v[1])));
     }
 
-    let mut body_buf = BufReader::new(File::open(body_filename).unwrap());
+    let body_file = body_file
+        .reopen()
+        .map_err(|e| format!("failed to reopen body file: {}", e))?;
+    let mut body_buf = BufReader::new(body_file);
     let mut body = String::new();
     body_buf
         .read_to_string(&mut body)
         .map_err(|e| format!("failed to read response body: {}", e))?;
-    fs::remove_file(body_filename)
-        .map_err(|e| format!("failed to remove temp file for response body: {}", e))?;
 
     Ok(Response {
         headers: Headers {
@@ -213,7 +217,7 @@ fn formatResponseText(resp: Response) -> Result<String, String> {
 
 fn formatConnection(Metrics: &Metrics) -> String {
     format!(
-        "Connected to {}:{} from {}:{}\n",
+        "Connected to {}:{} from {}:{}\n\n",
         Metrics.remote_ip.cyan(),
         Metrics.remote_port.cyan(),
         Metrics.local_ip,
