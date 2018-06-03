@@ -44,7 +44,7 @@ const CURL_FORMAT: &str = r#"
 //
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Status {
+struct Metrics {
     time_namelookup: f32,
     time_connect: f32,
     time_pretransfer: f32,
@@ -70,24 +70,24 @@ struct Status {
     range_transfer: f32,
 }
 
-impl Status {
-    fn new(resp: &str) -> Result<Status, String> {
-        let mut status: Status = serde_json::from_str(resp)
+impl Metrics {
+    fn new(resp: &str) -> Result<Metrics, String> {
+        let mut Metrics: Metrics = serde_json::from_str(resp)
             .map_err(|e| format!("failed to marshal response data: {}", e))?;
-        status.time_namelookup *= 1000.0;
-        status.time_connect *= 1000.0;
-        status.time_pretransfer *= 1000.0;
-        status.time_redirect *= 1000.0;
-        status.time_starttransfer *= 1000.0;
-        status.time_total *= 1000.0;
+        Metrics.time_namelookup *= 1000.0;
+        Metrics.time_connect *= 1000.0;
+        Metrics.time_pretransfer *= 1000.0;
+        Metrics.time_redirect *= 1000.0;
+        Metrics.time_starttransfer *= 1000.0;
+        Metrics.time_total *= 1000.0;
 
-        status.range_dns = status.time_namelookup;
-        status.range_connection = status.time_connect - status.time_namelookup;
-        status.range_ssl = status.time_pretransfer - status.time_connect;
-        status.range_server = status.time_starttransfer - status.time_pretransfer;
-        status.range_transfer = status.time_total - status.time_starttransfer;
-        let status = status;
-        Ok(status)
+        Metrics.range_dns = Metrics.time_namelookup;
+        Metrics.range_connection = Metrics.time_connect - Metrics.time_namelookup;
+        Metrics.range_ssl = Metrics.time_pretransfer - Metrics.time_connect;
+        Metrics.range_server = Metrics.time_starttransfer - Metrics.time_pretransfer;
+        Metrics.range_transfer = Metrics.time_total - Metrics.time_starttransfer;
+        let Metrics = Metrics;
+        Ok(Metrics)
     }
 }
 
@@ -112,7 +112,7 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn request(url: &str) -> Result<Status, String> {
+fn request(url: &str) -> Result<Metrics, String> {
     let out = process::Command::new("curl")
         .args(&[
             "-w",
@@ -129,27 +129,31 @@ fn request(url: &str) -> Result<Status, String> {
         .map_err(|e| format!("failed to execute curl: {}", e))?
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
-    Ok(Status::new(resp)?)
+    Ok(Metrics::new(resp)?)
 }
 
-fn formatResponseText(status: Status) -> Result<String, String> {
+fn formatResponseText(Metrics: Metrics) -> Result<String, String> {
     let mut res = String::new();
-    res.push_str(formatConnection(&status).as_str());
-    res.push_str(formatBody(&status).as_str());
+    res.push_str(formatConnection(&Metrics).as_str());
+    res.push_str(formatBody(&Metrics).as_str());
     Ok(res)
 }
 
-fn formatConnection(status: &Status) -> String {
+fn formatConnection(Metrics: &Metrics) -> String {
     format!(
         "Connected to {}:{} from {}:{}\n",
-        status.remote_ip.cyan(),
-        status.remote_port.cyan(),
-        status.local_ip,
-        status.local_port
+        Metrics.remote_ip.cyan(),
+        Metrics.remote_port.cyan(),
+        Metrics.local_ip,
+        Metrics.local_port
     )
 }
 
-fn formatBody(status: &Status) -> String {
+fn formatHeaders(Metrics: &Metrics) -> Result<String, String> {
+    Ok("".to_string())
+}
+
+fn formatBody(Metrics: &Metrics) -> String {
     format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
@@ -162,16 +166,16 @@ fn formatBody(status: &Status) -> String {
                                                                                 total:{b0004}
 
 ",
-        a0000 = fmta(status.range_dns),
-        a0001 = fmta(status.range_connection),
-        a0002 = fmta(status.range_ssl),
-        a0003 = fmta(status.range_server),
-        a0004 = fmta(status.range_transfer),
-        b0000 = fmtb(status.time_namelookup),
-        b0001 = fmtb(status.time_connect),
-        b0002 = fmtb(status.time_pretransfer),
-        b0003 = fmtb(status.time_starttransfer),
-        b0004 = fmtb(status.time_total),
+        a0000 = fmta(Metrics.range_dns),
+        a0001 = fmta(Metrics.range_connection),
+        a0002 = fmta(Metrics.range_ssl),
+        a0003 = fmta(Metrics.range_server),
+        a0004 = fmta(Metrics.range_transfer),
+        b0000 = fmtb(Metrics.time_namelookup),
+        b0001 = fmtb(Metrics.time_connect),
+        b0002 = fmtb(Metrics.time_pretransfer),
+        b0003 = fmtb(Metrics.time_starttransfer),
+        b0004 = fmtb(Metrics.time_total),
     )
 }
 
