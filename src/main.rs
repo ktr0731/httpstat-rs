@@ -8,28 +8,11 @@ extern crate serde_derive;
 
 use serde_json::{Error, Value};
 use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::{env, process};
 use url::{ParseError, Url};
 
 use colored::*;
-
-const CURL_FORMAT: &str = r#"
-{
-    "time_namelookup":    %{time_namelookup},
-    "time_connect":       %{time_connect},
-    "time_pretransfer":   %{time_pretransfer},
-    "time_redirect":      %{time_redirect},
-    "time_starttransfer": %{time_starttransfer},
-    "time_total":         %{time_total},
-    "speed_download":     %{speed_download},
-    "speed_upload":       %{speed_upload},
-    "remote_ip":          "%{remote_ip}",
-    "remote_port":        "%{remote_port}",
-    "local_ip":           "%{local_ip}",
-    "local_port":         "%{local_port}"
-}
-"#;
 
 //
 // const HTTP_TEMPLATE: &str = "
@@ -91,6 +74,23 @@ impl Metrics {
     }
 }
 
+struct Headers {
+    version: u8,
+    code: u16,
+    items: Vec<(&'static str, &'static str)>,
+}
+
+struct Body {
+    filename: &'static str,
+    content: String,
+}
+
+struct Response {
+    metrics: Metrics,
+    headers: Headers,
+    body: Body,
+}
+
 fn main() {
     process::exit(match run() {
         Ok(_) => 0,
@@ -104,7 +104,7 @@ fn main() {
 fn run() -> Result<(), String> {
     match env::args().nth(1) {
         Some(url) => {
-            let res = formatResponseText(request(&url)?)?;
+            let res = formatResponseText(request(&url, None)?)?;
             println!("{}", res);
             Ok(())
         }
@@ -112,15 +112,34 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn request(url: &str) -> Result<Metrics, String> {
+fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, String> {
+    const CURL_FORMAT: &str = r#"
+        {
+            "time_namelookup":    %{time_namelookup},
+            "time_connect":       %{time_connect},
+            "time_pretransfer":   %{time_pretransfer},
+            "time_redirect":      %{time_redirect},
+            "time_starttransfer": %{time_starttransfer},
+            "time_total":         %{time_total},
+            "speed_download":     %{speed_download},
+            "speed_upload":       %{speed_upload},
+            "remote_ip":          "%{remote_ip}",
+            "remote_port":        "%{remote_port}",
+            "local_ip":           "%{local_ip}",
+            "local_port":         "%{local_port}"
+        }"#;
+
+    let body_filename: &'static str = body_filename.unwrap_or("temp_body");
+    let header_filename = "temp_header";
+
     let out = process::Command::new("curl")
         .args(&[
             "-w",
             CURL_FORMAT,
             "-D",
-            "tmpd",
+            header_filename,
             "-o",
-            "tmpo",
+            body_filename,
             "-s",
             "-S",
             url,
@@ -129,13 +148,58 @@ fn request(url: &str) -> Result<Metrics, String> {
         .map_err(|e| format!("failed to execute curl: {}", e))?
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
-    Ok(Metrics::new(resp)?)
+
+    let mut header_buf = BufReader::new(File::open(header_filename).unwrap());
+    let mut headers = String::new();
+    header_buf
+        .read_to_string(&mut headers)
+        .map_err(|e| format!("failed to read response header: {}", e))?;
+
+    let mut lines = headers.trim().lines();
+    let protocol_and_code: Vec<&str> = lines
+        .next()
+        .ok_or("expected protocol info, but EOF: {}")?
+        .split(" ")
+        .take(2)
+        .collect();
+    let code: u16 = protocol_and_code[0]
+        .parse()
+        .map_err(|e| format!("failed to parse status code as interger: {}", e))?;
+    let protocol_and_version: Vec<&str> = protocol_and_code[0].split("/").take(2).collect();
+    let version: u8 = protocol_and_version[1]
+        .parse()
+        .map_err(|e| format!("failed to parse protocol version as integer: {}", e))?;
+
+    let mut header_items: Vec<(&str, &str)> = [].to_vec();
+    for header in lines {
+        let v: Vec<&str> = header.split(" ").collect();
+        header_items.push((v[0], v[1]));
+    }
+
+    let mut body_buf = BufReader::new(File::open(body_filename).unwrap());
+    let mut body = String::new();
+    body_buf
+        .read_to_string(&mut body)
+        .map_err(|e| format!("failed to read response body: {}", e))?;
+
+    Ok(Response {
+        headers: Headers {
+            version: version,
+            code: code,
+            items: header_items,
+        },
+        body: Body {
+            filename: body_filename,
+            content: body,
+        },
+        metrics: Metrics::new(resp)?,
+    })
 }
 
-fn formatResponseText(Metrics: Metrics) -> Result<String, String> {
+fn formatResponseText(resp: Response) -> Result<String, String> {
     let mut res = String::new();
-    res.push_str(formatConnection(&Metrics).as_str());
-    res.push_str(formatBody(&Metrics).as_str());
+    res.push_str(formatConnection(&resp.metrics).as_str());
+    res.push_str(formatBody(&resp.metrics).as_str());
     Ok(res)
 }
 
