@@ -135,14 +135,14 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
 
     let body_filename = body_file.path().to_string_lossy().into_owned();
     println!("tmp: {}", body_filename);
-    let header_filename = "temp_header";
+    let header_file = tempfile::NamedTempFile::new().unwrap();
 
     let out = process::Command::new("curl")
         .args(&[
             "-w",
             CURL_FORMAT,
             "-D",
-            header_filename,
+            header_file.path().to_string_lossy().into_owned().as_ref(),
             "-o",
             body_filename.as_ref(),
             "-s",
@@ -154,13 +154,14 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
 
-    let mut header_buf = BufReader::new(File::open(header_filename).unwrap());
+    let header_file = header_file
+        .reopen()
+        .map_err(|e| format!("failed to reopen header file: {}", e))?;
+    let mut header_buf = BufReader::new(header_file);
     let mut headers = String::new();
     header_buf
         .read_to_string(&mut headers)
         .map_err(|e| format!("failed to read response header: {}", e))?;
-    fs::remove_file(header_filename)
-        .map_err(|e| format!("failed to remove temp file for response header: {}", e))?;
 
     let mut lines = headers.trim().lines();
     let protocol_and_code: Vec<&str> = lines
