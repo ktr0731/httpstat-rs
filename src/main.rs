@@ -94,13 +94,10 @@ struct Response {
 }
 
 fn main() {
-    process::exit(match run() {
-        Ok(_) => 0,
-        Err(err) => {
-            println!("{}", err);
-            1
-        }
-    })
+    if let Err(e) = run() {
+        println!("{}", e);
+        process::exit(1);
+    }
 }
 
 fn run() -> Result<(), String> {
