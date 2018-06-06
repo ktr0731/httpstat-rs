@@ -128,11 +128,12 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
             "local_port":         "%{local_port}"
         }"#;
 
-    let body_file = tempfile::NamedTempFile::new().unwrap();
+    let body_file = tempfile::NamedTempFile::new()
+        .map_err(|e| format!("failed to create temp file for response body: {}", e))?;
 
     let body_filename = body_file.path().to_string_lossy().into_owned();
-    println!("tmp: {}", body_filename);
-    let header_file = tempfile::NamedTempFile::new().unwrap();
+    let header_file = tempfile::NamedTempFile::new()
+        .map_err(|e| format!("failed to create temp file for response header: {}", e))?;
 
     let out = process::Command::new("curl")
         .args(&[
@@ -209,6 +210,7 @@ fn formatResponseText(resp: Response) -> Result<String, String> {
     let mut res = String::new();
     res.push_str(formatConnection(&resp.metrics).as_str());
     res.push_str(formatHeaders(&resp.headers).as_str());
+    res.push_str(printBodyPlace(&resp.body.filename).as_str());
     res.push_str(formatBody(&resp.metrics).as_str());
     Ok(res)
 }
@@ -237,6 +239,10 @@ fn formatHeaders(headers: &Headers) -> String {
         s.push_str(format!("{} {}\n", header.0, header.1.cyan(),).as_str())
     }
     s
+}
+
+fn printBodyPlace(place: &str) -> String {
+    format!("\n{} stored in: {}\n", "Body".green(), place)
 }
 
 fn formatBody(Metrics: &Metrics) -> String {
