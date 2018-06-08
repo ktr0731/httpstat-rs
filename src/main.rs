@@ -1,4 +1,5 @@
 extern crate colored;
+extern crate rand;
 extern crate serde_json;
 extern crate tempfile;
 extern crate url;
@@ -6,6 +7,7 @@ extern crate url;
 #[macro_use]
 extern crate serde_derive;
 
+use rand::Rng;
 use serde_json::{Error, Value};
 use std::borrow::Cow;
 use std::fs;
@@ -130,10 +132,15 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
 
     let body_file = tempfile::NamedTempFile::new()
         .map_err(|e| format!("failed to create temp file for response body: {}", e))?;
-
     let body_filename = body_file.path().to_string_lossy().into_owned();
+
+    let body_file = body_file
+        .persist(&body_filename)
+        .map_err(|e| format!("failed to persist temp file for response body: {}", e))?;
+
     let header_file = tempfile::NamedTempFile::new()
         .map_err(|e| format!("failed to create temp file for response header: {}", e))?;
+    let header_filename = header_file.path().to_string_lossy().into_owned();
 
     let out = process::Command::new("curl")
         .args(&[
@@ -152,9 +159,8 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
 
-    let header_file = header_file
-        .reopen()
-        .map_err(|e| format!("failed to reopen header file: {}", e))?;
+    let header_file =
+        File::open(header_filename).map_err(|e| format!("failed to reopen header file: {}", e))?;
     let mut header_buf = BufReader::new(header_file);
     let mut headers = String::new();
     header_buf
@@ -183,9 +189,8 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         header_items.push((String::from(v[0]), String::from(v[1])));
     }
 
-    let body_file = body_file
-        .reopen()
-        .map_err(|e| format!("failed to reopen body file: {}", e))?;
+    let body_file =
+        File::open(&body_filename).map_err(|e| format!("failed to reopen body file: {}", e))?;
     let mut body_buf = BufReader::new(body_file);
     let mut body = String::new();
     body_buf
@@ -210,7 +215,7 @@ fn formatResponseText(resp: Response) -> Result<String, String> {
     let mut res = String::new();
     res.push_str(formatConnection(&resp.metrics).as_str());
     res.push_str(formatHeaders(&resp.headers).as_str());
-    res.push_str(printBodyPlace(&resp.body.filename).as_str());
+    res.push_str(formatBodyLocation(&resp.body.filename).as_str());
     res.push_str(formatBody(&resp.metrics).as_str());
     Ok(res)
 }
@@ -241,8 +246,8 @@ fn formatHeaders(headers: &Headers) -> String {
     s
 }
 
-fn printBodyPlace(place: &str) -> String {
-    format!("\n{} stored in: {}\n", "Body".green(), place)
+fn formatBodyLocation(loc: &str) -> String {
+    format!("\n{} stored in: {}\n", "Body".green(), loc)
 }
 
 fn formatBody(Metrics: &Metrics) -> String {
@@ -277,4 +282,11 @@ fn fmta(n: f32) -> colored::ColoredString {
 
 fn fmtb(n: f32) -> colored::ColoredString {
     format!("{:<7}", (n as i32).to_string() + "ms").cyan()
+}
+
+fn get_random_filename() -> String {
+    rand::thread_rng()
+        .gen_ascii_chars()
+        .take(10)
+        .collect::<String>()
 }
