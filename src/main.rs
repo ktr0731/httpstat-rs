@@ -106,7 +106,7 @@ fn main() {
 fn run() -> Result<(), String> {
     match env::args().nth(1) {
         Some(url) => {
-            let res = formatResponseText(request(&url, None)?)?;
+            let res = format_response_text(request(&url, None)?)?;
             println!("{}", res);
             Ok(())
         }
@@ -114,7 +114,7 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn createTempFile(filename: Option<String>) -> Result<(File, String), String> {
+fn create_tempfile(filename: Option<String>) -> Result<(File, String), String> {
     let file =
         tempfile::NamedTempFile::new().map_err(|e| format!("failed to create temp file: {}", e))?;
     let filename = filename.unwrap_or(file.path().to_string_lossy().into_owned());
@@ -141,8 +141,8 @@ fn request(url: &str, body_filename: Option<String>) -> Result<Response, String>
             "local_port":         "%{local_port}"
         }"#;
 
-    let (body_file, body_filename) = createTempFile(None)?;
-    let (header_file, header_filename) = createTempFile(None)?;
+    let (body_file, body_filename) = create_tempfile(None)?;
+    let (header_file, header_filename) = create_tempfile(None)?;
 
     let out = process::Command::new("curl")
         .args(&[
@@ -212,16 +212,16 @@ fn request(url: &str, body_filename: Option<String>) -> Result<Response, String>
     })
 }
 
-fn formatResponseText(resp: Response) -> Result<String, String> {
+fn format_response_text(resp: Response) -> Result<String, String> {
     let mut res = String::new();
-    res.push_str(formatConnection(&resp.metrics).as_str());
-    res.push_str(formatHeaders(&resp.headers).as_str());
-    res.push_str(formatBodyLocation(&resp.body.filename).as_str());
-    res.push_str(formatBody(&resp.metrics).as_str());
+    res.push_str(format_connection_text(&resp.metrics).as_str());
+    res.push_str(format_header_text(&resp.headers).as_str());
+    res.push_str(format_body_location_text(&resp.body.filename).as_str());
+    res.push_str(format_body_text(&resp.metrics).as_str());
     Ok(res)
 }
 
-fn formatConnection(Metrics: &Metrics) -> String {
+fn format_connection_text(Metrics: &Metrics) -> String {
     format!(
         "Connected to {}:{} from {}:{}\n\n",
         Metrics.remote_ip.cyan(),
@@ -231,7 +231,7 @@ fn formatConnection(Metrics: &Metrics) -> String {
     )
 }
 
-fn formatHeaders(headers: &Headers) -> String {
+fn format_header_text(headers: &Headers) -> String {
     let mut s = String::new();
     s.push_str(
         format!(
@@ -247,11 +247,11 @@ fn formatHeaders(headers: &Headers) -> String {
     s
 }
 
-fn formatBodyLocation(loc: &str) -> String {
+fn format_body_location_text(loc: &str) -> String {
     format!("\n{} stored in: {}\n", "Body".green(), loc)
 }
 
-fn formatBody(Metrics: &Metrics) -> String {
+fn format_body_text(Metrics: &Metrics) -> String {
     format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
