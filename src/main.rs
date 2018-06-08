@@ -13,6 +13,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use std::{env, process};
 use url::{ParseError, Url};
 
@@ -113,7 +114,17 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, String> {
+fn createTempFile(filename: Option<String>) -> Result<(File, String), String> {
+    let file =
+        tempfile::NamedTempFile::new().map_err(|e| format!("failed to create temp file: {}", e))?;
+    let filename = filename.unwrap_or(file.path().to_string_lossy().into_owned());
+
+    let file = file.persist(&filename)
+        .map_err(|e| format!("failed to persist temp file: {}", e))?;
+    Ok((file, filename))
+}
+
+fn request(url: &str, body_filename: Option<String>) -> Result<Response, String> {
     const CURL_FORMAT: &str = r#"
         {
             "time_namelookup":    %{time_namelookup},
@@ -130,26 +141,17 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
             "local_port":         "%{local_port}"
         }"#;
 
-    let body_file = tempfile::NamedTempFile::new()
-        .map_err(|e| format!("failed to create temp file for response body: {}", e))?;
-    let body_filename = body_file.path().to_string_lossy().into_owned();
-
-    let body_file = body_file
-        .persist(&body_filename)
-        .map_err(|e| format!("failed to persist temp file for response body: {}", e))?;
-
-    let header_file = tempfile::NamedTempFile::new()
-        .map_err(|e| format!("failed to create temp file for response header: {}", e))?;
-    let header_filename = header_file.path().to_string_lossy().into_owned();
+    let (body_file, body_filename) = createTempFile(None)?;
+    let (header_file, header_filename) = createTempFile(None)?;
 
     let out = process::Command::new("curl")
         .args(&[
             "-w",
             CURL_FORMAT,
             "-D",
-            header_file.path().to_string_lossy().into_owned().as_ref(),
+            &header_filename,
             "-o",
-            body_filename.as_ref(),
+            &body_filename,
             "-s",
             "-S",
             url,
@@ -173,7 +175,6 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         .ok_or("expected protocol info, but EOF: {}")?
         .trim()
         .splitn(2, " ")
-        .take(2)
         .collect();
     let code: u16 = protocol_and_code[1]
         .parse()
