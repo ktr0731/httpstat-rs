@@ -1,4 +1,5 @@
 extern crate colored;
+extern crate rand;
 extern crate serde_json;
 extern crate tempfile;
 extern crate url;
@@ -6,11 +7,13 @@ extern crate url;
 #[macro_use]
 extern crate serde_derive;
 
+use rand::Rng;
 use serde_json::{Error, Value};
 use std::borrow::Cow;
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use std::{env, process};
 use url::{ParseError, Url};
 
@@ -93,20 +96,55 @@ struct Response {
     body: Body,
 }
 
+struct Tempfile {
+    f: File,
+    name: String,
+}
+
+impl Tempfile {
+    fn new(filename: Option<String>) -> Result<Tempfile, String> {
+        let file = tempfile::NamedTempFile::new()
+            .map_err(|e| format!("failed to create temp file: {}", e))?;
+        let filename = filename.unwrap_or(file.path().to_string_lossy().into_owned());
+
+        let file = file.persist(&filename)
+            .map_err(|e| format!("failed to persist temp file: {}", e))?;
+        Ok(Tempfile {
+            f: file,
+            name: filename,
+        })
+    }
+
+    fn reopen(&self) -> Result<Tempfile, String> {
+        Ok(Tempfile {
+            f: File::open(&self.name).map_err(|e| format!("failed to reopen header file: {}", e))?,
+            name: self.name.clone(),
+        })
+    }
+
+    fn path(&self) -> String {
+        // TODO: Cow
+        self.name.clone()
+    }
+}
+
+impl Read for Tempfile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.f.read(buf)
+    }
+}
+
 fn main() {
-    process::exit(match run() {
-        Ok(_) => 0,
-        Err(err) => {
-            println!("{}", err);
-            1
-        }
-    })
+    if let Err(e) = run() {
+        println!("{}", e);
+        process::exit(1);
+    }
 }
 
 fn run() -> Result<(), String> {
     match env::args().nth(1) {
         Some(url) => {
-            let res = formatResponseText(request(&url, None)?)?;
+            let res = format_response_text(request(&url, None)?);
             println!("{}", res);
             Ok(())
         }
@@ -114,7 +152,7 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, String> {
+fn request(url: &str, body_filename: Option<String>) -> Result<Response, String> {
     const CURL_FORMAT: &str = r#"
         {
             "time_namelookup":    %{time_namelookup},
@@ -131,20 +169,17 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
             "local_port":         "%{local_port}"
         }"#;
 
-    let body_file = tempfile::NamedTempFile::new().unwrap();
-
-    let body_filename = body_file.path().to_string_lossy().into_owned();
-    println!("tmp: {}", body_filename);
-    let header_filename = "temp_header";
+    let body_file = Tempfile::new(None)?;
+    let header_file = Tempfile::new(None)?;
 
     let out = process::Command::new("curl")
         .args(&[
             "-w",
             CURL_FORMAT,
             "-D",
-            header_filename,
+            &header_file.path(),
             "-o",
-            body_filename.as_ref(),
+            &body_file.path(),
             "-s",
             "-S",
             url,
@@ -154,27 +189,30 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         .stdout;
     let resp = &String::from_utf8_lossy(&out);
 
-    let mut header_buf = BufReader::new(File::open(header_filename).unwrap());
+    let header_file = header_file.reopen()?;
+
+    let mut header_buf = BufReader::new(header_file);
     let mut headers = String::new();
     header_buf
         .read_to_string(&mut headers)
         .map_err(|e| format!("failed to read response header: {}", e))?;
-    fs::remove_file(header_filename)
-        .map_err(|e| format!("failed to remove temp file for response header: {}", e))?;
 
     let mut lines = headers.trim().lines();
+
+    // e.g. HTTP/1.1 200 -> ["HTTP1.1", "200"]
     let protocol_and_code: Vec<&str> = lines
         .next()
         .ok_or("expected protocol info, but EOF: {}")?
         .trim()
         .splitn(2, " ")
-        .take(2)
         .collect();
     let code: u16 = protocol_and_code[1]
         .parse()
         .map_err(|e| format!("failed to parse status code as interger: {}", e))?;
-    let protocol_and_version: Vec<&str> = protocol_and_code[0].split("/").take(2).collect();
-    let version: u8 = protocol_and_version[1]
+    let version: u8 = protocol_and_code[0]
+        .split("/")
+        .take(2)
+        .collect::<Vec<&str>>()[1]
         .parse()
         .map_err(|e| format!("failed to parse protocol version as integer: {}", e))?;
 
@@ -184,9 +222,9 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
         header_items.push((String::from(v[0]), String::from(v[1])));
     }
 
-    let body_file = body_file
-        .reopen()
-        .map_err(|e| format!("failed to reopen body file: {}", e))?;
+    let body_file = body_file.reopen()?;
+    let body_filename = body_file.path().clone();
+
     let mut body_buf = BufReader::new(body_file);
     let mut body = String::new();
     body_buf
@@ -207,15 +245,16 @@ fn request(url: &str, body_filename: Option<&'static str>) -> Result<Response, S
     })
 }
 
-fn formatResponseText(resp: Response) -> Result<String, String> {
+fn format_response_text(resp: Response) -> String {
     let mut res = String::new();
-    res.push_str(formatConnection(&resp.metrics).as_str());
-    res.push_str(formatHeaders(&resp.headers).as_str());
-    res.push_str(formatBody(&resp.metrics).as_str());
-    Ok(res)
+    res.push_str(format_connection_text(&resp.metrics).as_str());
+    res.push_str(format_header_text(&resp.headers).as_str());
+    res.push_str(format_body_location_text(&resp.body.filename).as_str());
+    res.push_str(format_body_text(&resp.metrics).as_str());
+    res
 }
 
-fn formatConnection(Metrics: &Metrics) -> String {
+fn format_connection_text(Metrics: &Metrics) -> String {
     format!(
         "Connected to {}:{} from {}:{}\n\n",
         Metrics.remote_ip.cyan(),
@@ -225,7 +264,7 @@ fn formatConnection(Metrics: &Metrics) -> String {
     )
 }
 
-fn formatHeaders(headers: &Headers) -> String {
+fn format_header_text(headers: &Headers) -> String {
     let mut s = String::new();
     s.push_str(
         format!(
@@ -241,10 +280,11 @@ fn formatHeaders(headers: &Headers) -> String {
     s
 }
 
-fn formatBody(Metrics: &Metrics) -> String {
-    let fmta = |n: f32| format!("{:^7}", (n as i32).to_string() + "ms").cyan();
-    let fmtb = |n: f32| format!("{:<7}", (n as i32).to_string() + "ms").cyan();
+fn format_body_location_text(loc: &str) -> String {
+    format!("\n{} stored in: {}\n", "Body".green(), loc)
+}
 
+fn format_body_text(Metrics: &Metrics) -> String {
     format!(
         "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
@@ -268,4 +308,19 @@ fn formatBody(Metrics: &Metrics) -> String {
         b0003 = fmtb(Metrics.time_starttransfer),
         b0004 = fmtb(Metrics.time_total),
     )
+}
+
+fn fmta(n: f32) -> colored::ColoredString {
+    format!("{:^7}", (n as i32).to_string() + "ms").cyan()
+}
+
+fn fmtb(n: f32) -> colored::ColoredString {
+    format!("{:<7}", (n as i32).to_string() + "ms").cyan()
+}
+
+fn get_random_filename() -> String {
+    rand::thread_rng()
+        .gen_ascii_chars()
+        .take(10)
+        .collect::<String>()
 }
