@@ -10,11 +10,11 @@ extern crate serde_derive;
 use rand::Rng;
 use serde_json::{Error, Value};
 use std::borrow::Cow;
-use std::fs;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::{env, process};
+use std::{fmt, fs};
 use url::{ParseError, Url};
 
 use colored::*;
@@ -144,8 +144,9 @@ fn main() {
 fn run() -> Result<(), String> {
     match env::args().nth(1) {
         Some(url) => {
-            let res = format_response_text(request(&url, None)?);
-            println!("{}", res);
+            let resp = request(&url, None)?;
+            let printer = Printer { resp: resp };
+            println!("{}", printer);
             Ok(())
         }
         None => Err(String::from("Usage: httpstat <url>")),
@@ -245,48 +246,58 @@ fn request(url: &str, body_filename: Option<String>) -> Result<Response, String>
     })
 }
 
-fn format_response_text(resp: Response) -> String {
-    let mut res = String::new();
-    res.push_str(format_connection_text(&resp.metrics).as_str());
-    res.push_str(format_header_text(&resp.headers).as_str());
-    res.push_str(format_body_location_text(&resp.body.filename).as_str());
-    res.push_str(format_body_text(&resp.metrics).as_str());
-    res
+// struct Printer<T: Write> {
+struct Printer {
+    // w: T,
+    resp: Response,
 }
 
-fn format_connection_text(Metrics: &Metrics) -> String {
-    format!(
-        "Connected to {}:{} from {}:{}\n\n",
-        Metrics.remote_ip.cyan(),
-        Metrics.remote_port.cyan(),
-        Metrics.local_ip,
-        Metrics.local_port
-    )
-}
-
-fn format_header_text(headers: &Headers) -> String {
-    let mut s = String::new();
-    s.push_str(
-        format!(
-            "{}/{} {}\n",
-            "HTTP".green(),
-            headers.version.to_string().cyan(),
-            headers.code.to_string().cyan()
-        ).as_str(),
-    );
-    for header in &headers.items {
-        s.push_str(format!("{} {}\n", header.0, header.1.cyan(),).as_str())
+impl Printer {
+    fn format_response_text(&self) -> String {
+        let mut res = String::new();
+        res.push_str(self.format_connection_text(&self.resp.metrics).as_str());
+        res.push_str(self.format_header_text(&self.resp.headers).as_str());
+        res.push_str(
+            self.format_body_location_text(&self.resp.body.filename)
+                .as_str(),
+        );
+        res.push_str(self.format_body_text(&self.resp.metrics).as_str());
+        res
     }
-    s
-}
 
-fn format_body_location_text(loc: &str) -> String {
-    format!("\n{} stored in: {}\n", "Body".green(), loc)
-}
+    fn format_connection_text(&self, Metrics: &Metrics) -> String {
+        format!(
+            "Connected to {}:{} from {}:{}\n\n",
+            Metrics.remote_ip.cyan(),
+            Metrics.remote_port.cyan(),
+            Metrics.local_ip,
+            Metrics.local_port
+        )
+    }
 
-fn format_body_text(Metrics: &Metrics) -> String {
-    format!(
-        "
+    fn format_header_text(&self, headers: &Headers) -> String {
+        let mut s = String::new();
+        s.push_str(
+            format!(
+                "{}/{} {}\n",
+                "HTTP".green(),
+                headers.version.to_string().cyan(),
+                headers.code.to_string().cyan()
+            ).as_str(),
+        );
+        for header in &headers.items {
+            s.push_str(format!("{} {}\n", header.0, header.1.cyan(),).as_str())
+        }
+        s
+    }
+
+    fn format_body_location_text(&self, loc: &str) -> String {
+        format!("\n{} stored in: {}\n", "Body".green(), loc)
+    }
+
+    fn format_body_text(&self, Metrics: &Metrics) -> String {
+        format!(
+            "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
 [   {a0000}  |     {a0001}    |    {a0002}    |      {a0003}      |      {a0004}     ]
              |                |               |                   |                  |
@@ -297,25 +308,32 @@ fn format_body_text(Metrics: &Metrics) -> String {
                                                                                  total:{b0004}
 
 ",
-        a0000 = fmta(Metrics.range_dns),
-        a0001 = fmta(Metrics.range_connection),
-        a0002 = fmta(Metrics.range_ssl),
-        a0003 = fmta(Metrics.range_server),
-        a0004 = fmta(Metrics.range_transfer),
-        b0000 = fmtb(Metrics.time_namelookup),
-        b0001 = fmtb(Metrics.time_connect),
-        b0002 = fmtb(Metrics.time_pretransfer),
-        b0003 = fmtb(Metrics.time_starttransfer),
-        b0004 = fmtb(Metrics.time_total),
-    )
+            a0000 = self.fmta(Metrics.range_dns),
+            a0001 = self.fmta(Metrics.range_connection),
+            a0002 = self.fmta(Metrics.range_ssl),
+            a0003 = self.fmta(Metrics.range_server),
+            a0004 = self.fmta(Metrics.range_transfer),
+            b0000 = self.fmtb(Metrics.time_namelookup),
+            b0001 = self.fmtb(Metrics.time_connect),
+            b0002 = self.fmtb(Metrics.time_pretransfer),
+            b0003 = self.fmtb(Metrics.time_starttransfer),
+            b0004 = self.fmtb(Metrics.time_total),
+        )
+    }
+
+    fn fmta(&self, n: f32) -> colored::ColoredString {
+        format!("{:^7}", (n as i32).to_string() + "ms").cyan()
+    }
+
+    fn fmtb(&self, n: f32) -> colored::ColoredString {
+        format!("{:<7}", (n as i32).to_string() + "ms").cyan()
+    }
 }
 
-fn fmta(n: f32) -> colored::ColoredString {
-    format!("{:^7}", (n as i32).to_string() + "ms").cyan()
-}
-
-fn fmtb(n: f32) -> colored::ColoredString {
-    format!("{:<7}", (n as i32).to_string() + "ms").cyan()
+impl fmt::Display for Printer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.format_response_text())
+    }
 }
 
 fn get_random_filename() -> String {
