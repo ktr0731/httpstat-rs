@@ -335,10 +335,3 @@ impl fmt::Display for Printer {
         write!(f, "{}", self.format_response_text())
     }
 }
-
-fn get_random_filename() -> String {
-    rand::thread_rng()
-        .gen_ascii_chars()
-        .take(10)
-        .collect::<String>()
-}
