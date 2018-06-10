@@ -1,7 +1,5 @@
-use serde_derive;
 use serde_json;
-use std::fmt;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::process;
 use tempfile;
@@ -47,22 +45,22 @@ pub struct Metrics {
 
 impl Metrics {
     fn new(resp: &str) -> Result<Metrics, String> {
-        let mut Metrics: Metrics = serde_json::from_str(resp)
+        let mut metrics: Metrics = serde_json::from_str(resp)
             .map_err(|e| format!("failed to marshal response data: {}", e))?;
-        Metrics.time_namelookup *= 1000.0;
-        Metrics.time_connect *= 1000.0;
-        Metrics.time_pretransfer *= 1000.0;
-        Metrics.time_redirect *= 1000.0;
-        Metrics.time_starttransfer *= 1000.0;
-        Metrics.time_total *= 1000.0;
+        metrics.time_namelookup *= 1000.0;
+        metrics.time_connect *= 1000.0;
+        metrics.time_pretransfer *= 1000.0;
+        metrics.time_redirect *= 1000.0;
+        metrics.time_starttransfer *= 1000.0;
+        metrics.time_total *= 1000.0;
 
-        Metrics.range_dns = Metrics.time_namelookup;
-        Metrics.range_connection = Metrics.time_connect - Metrics.time_namelookup;
-        Metrics.range_ssl = Metrics.time_pretransfer - Metrics.time_connect;
-        Metrics.range_server = Metrics.time_starttransfer - Metrics.time_pretransfer;
-        Metrics.range_transfer = Metrics.time_total - Metrics.time_starttransfer;
-        let Metrics = Metrics;
-        Ok(Metrics)
+        metrics.range_dns = metrics.time_namelookup;
+        metrics.range_connection = metrics.time_connect - metrics.time_namelookup;
+        metrics.range_ssl = metrics.time_pretransfer - metrics.time_connect;
+        metrics.range_server = metrics.time_starttransfer - metrics.time_pretransfer;
+        metrics.range_transfer = metrics.time_total - metrics.time_starttransfer;
+        let metrics = metrics;
+        Ok(metrics)
     }
 }
 

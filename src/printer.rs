@@ -25,13 +25,13 @@ impl Printer {
         res
     }
 
-    fn format_connection_text(&self, Metrics: &client::Metrics) -> String {
+    fn format_connection_text(&self, metrics: &client::Metrics) -> String {
         format!(
             "Connected to {}:{} from {}:{}\n\n",
-            Metrics.remote_ip.cyan(),
-            Metrics.remote_port.cyan(),
-            Metrics.local_ip,
-            Metrics.local_port
+            metrics.remote_ip.cyan(),
+            metrics.remote_port.cyan(),
+            metrics.local_ip,
+            metrics.local_port
         )
     }
 
@@ -55,7 +55,7 @@ impl Printer {
         format!("\n{} stored in: {}\n", "Body".green(), loc)
     }
 
-    fn format_body_text(&self, Metrics: &client::Metrics) -> String {
+    fn format_body_text(&self, metrics: &client::Metrics) -> String {
         format!(
             "
   DNS Lookup   TCP Connection   TLS Handshake   Server Processing   Content Transfer
@@ -68,16 +68,16 @@ impl Printer {
                                                                                  total:{b0004}
 
 ",
-            a0000 = self.fmta(Metrics.range_dns),
-            a0001 = self.fmta(Metrics.range_connection),
-            a0002 = self.fmta(Metrics.range_ssl),
-            a0003 = self.fmta(Metrics.range_server),
-            a0004 = self.fmta(Metrics.range_transfer),
-            b0000 = self.fmtb(Metrics.time_namelookup),
-            b0001 = self.fmtb(Metrics.time_connect),
-            b0002 = self.fmtb(Metrics.time_pretransfer),
-            b0003 = self.fmtb(Metrics.time_starttransfer),
-            b0004 = self.fmtb(Metrics.time_total),
+            a0000 = self.fmta(metrics.range_dns),
+            a0001 = self.fmta(metrics.range_connection),
+            a0002 = self.fmta(metrics.range_ssl),
+            a0003 = self.fmta(metrics.range_server),
+            a0004 = self.fmta(metrics.range_transfer),
+            b0000 = self.fmtb(metrics.time_namelookup),
+            b0001 = self.fmtb(metrics.time_connect),
+            b0002 = self.fmtb(metrics.time_pretransfer),
+            b0003 = self.fmtb(metrics.time_starttransfer),
+            b0004 = self.fmtb(metrics.time_total),
         )
     }
 
