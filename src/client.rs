@@ -162,7 +162,6 @@ pub fn request(url: &str, body_filename: Option<String>) -> Result<Response, Str
         .trim()
         .split(" ")
         .collect();
-    println!("{:?}", protocol_and_code);
     let code: u16 = protocol_and_code[1]
         .parse()
         .map_err(|e| format!("failed to parse status code as interger: {}", e))?;
