@@ -108,7 +108,11 @@ impl Read for Tempfile {
     }
 }
 
-pub fn request(url: &str, body_filename: Option<String>) -> Result<Response, String> {
+pub fn request(
+    url: &str,
+    args: Vec<String>,
+    body_filename: Option<String>,
+) -> Result<Response, String> {
     const CURL_FORMAT: &str = r#"
         {
             "time_namelookup":    %{time_namelookup},
@@ -127,6 +131,8 @@ pub fn request(url: &str, body_filename: Option<String>) -> Result<Response, Str
 
     let body_file = Tempfile::new(None)?;
     let header_file = Tempfile::new(None)?;
+
+    // TODO: other options which passed
 
     let out = process::Command::new("curl")
         .args(&[

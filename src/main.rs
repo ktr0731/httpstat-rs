@@ -22,7 +22,7 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     let matches = opts.parse(&args[1..])
-        .map_err(|e| format!("failed to parse options: {}", e))?;
+        .map_err(|e| format!("Error: {} is not allowed in extra curl args", e))?;
 
     if matches.opt_present("h") {
         print_usage();
@@ -33,9 +33,11 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
 
-    match matches.free.get(1) {
+    let mut args = matches.free;
+
+    match args.pop() {
         Some(url) => {
-            let resp = client::request(&url, None)?;
+            let resp = client::request(&url, args, None)?;
             let printer = printer::Printer::new(resp);
             println!("{}", printer);
             Ok(())
