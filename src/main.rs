@@ -21,7 +21,10 @@ fn run() -> Result<(), String> {
     let matches = opts.parse(&args[1..])
         .map_err(|e| format!("failed to parse options: {}", e))?;
 
-    // if matches.opt_present("")
+    if matches.opt_present("h") {
+        print_usage();
+        return Ok(());
+    }
 
     match matches.free.get(1) {
         Some(url) => {
