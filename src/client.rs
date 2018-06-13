@@ -4,18 +4,6 @@ use std::io::{self, BufReader, Read};
 use std::process;
 use tempfile;
 
-//
-// const HTTP_TEMPLATE: &str = "
-//   DNS Lookup   TCP Connection   Server Processing   Content Transfer
-// [ %s  |     %s  |        %s  |       %s  ]
-// |                |                   |                  |
-// namelookup:%s      |                   |                  |
-// connect:%s         |                  |
-// starttransfer:%s        |
-// total:%s
-// ";
-//
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
     pub time_namelookup: f32,
@@ -65,7 +53,8 @@ impl Metrics {
 }
 
 pub struct Headers {
-    pub version: u8,
+    pub url: String,
+    pub version: f32,
     pub code: u16,
     pub items: Vec<(String, String)>,
 }
@@ -166,17 +155,18 @@ pub fn request(url: &str, body_filename: Option<String>) -> Result<Response, Str
 
     let mut lines = headers.trim().lines();
 
-    // e.g. HTTP/1.1 200 -> ["HTTP1.1", "200"]
+    // e.g. HTTP/1.1 200 -> ["HTTP/1.1", "200"]
     let protocol_and_code: Vec<&str> = lines
         .next()
         .ok_or("expected protocol info, but EOF: {}")?
         .trim()
-        .splitn(2, " ")
+        .split(" ")
         .collect();
+    println!("{:?}", protocol_and_code);
     let code: u16 = protocol_and_code[1]
         .parse()
         .map_err(|e| format!("failed to parse status code as interger: {}", e))?;
-    let version: u8 = protocol_and_code[0]
+    let version: f32 = protocol_and_code[0]
         .split("/")
         .take(2)
         .collect::<Vec<&str>>()[1]
@@ -200,6 +190,7 @@ pub fn request(url: &str, body_filename: Option<String>) -> Result<Response, Str
 
     Ok(Response {
         headers: Headers {
+            url: url.to_string(),
             version: version,
             code: code,
             items: header_items,
