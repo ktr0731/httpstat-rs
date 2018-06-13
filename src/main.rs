@@ -5,6 +5,8 @@ use getopts::Options;
 use httpstat::{client, printer};
 use std::{env, process};
 
+const VERSION: &str = "1.0.0";
+
 fn main() {
     if let Err(e) = run() {
         println!("{}", e);
@@ -15,6 +17,7 @@ fn main() {
 fn run() -> Result<(), String> {
     let mut opts = Options::new();
     opts.optflag("h", "help", "show this screen.");
+    opts.optflag("", "version", "show version.");
 
     let args: Vec<String> = env::args().collect();
 
@@ -23,6 +26,10 @@ fn run() -> Result<(), String> {
 
     if matches.opt_present("h") {
         print_usage();
+        return Ok(());
+    }
+    if matches.opt_present("version") {
+        print_version();
         return Ok(());
     }
 
@@ -70,4 +77,8 @@ Environments:
   HTTPSTAT_DEBUG        Set to `true` to see debugging logs. Default is `false`
 "
     )
+}
+
+fn print_version() {
+    println!("httpstat {}", VERSION);
 }
